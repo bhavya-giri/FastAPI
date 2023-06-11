@@ -1,27 +1,41 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from uvicorn import run
+from fastai.vision.all import *
+import skimage
+from urllib.request import urlopen
+import os
 
 app = FastAPI()
 
-class Msg(BaseModel):
-    msg: str
+origins = ["*"]
+methods = ["*"]
+headers = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=methods,
+    allow_headers=headers,
+)
+
+learn = load_learner("export.pkl")
 
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World. Welcome to FastAPI!"}
+    return {"message": "Welcome to the Garbage Classification API!"}
 
 
-@app.get("/path")
-async def demo_get():
-    return {"message": "This is /path endpoint, use a post request to transform the text to uppercase"}
+@app.post("/predict")
+async def get_net_image_prediction(image_link: str = ""):
+    if image_link == "":
+        return {"message": "No image link provided"}
+    pred, idx, prob = learn.predict(PILImage.create(urlopen(image_link)))
+    return {"predcition": pred, "probability": float(prob[0])}
 
 
-@app.post("/path")
-async def demo_post(inp: Msg):
-    return {"message": inp.msg.upper()}
-
-
-@app.get("/path/{path_id}")
-async def demo_get_path_id(path_id: int):
-    return {"message": f"This is /path/{path_id} endpoint, use post request to retrieve result"}
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    run(app, host="0.0.0.0", port=port)
